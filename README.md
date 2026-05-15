@@ -63,6 +63,4 @@ python scripts/train_dpo.py --base_model_path checkpoints/base --pairs_path data
 python scripts/evaluate.py --model_path checkpoints/dpo --data_path data/chembl_30.smi
 ```
 
-## Citation
 
-If you use this in your work, cite the project (preprint forthcoming).
