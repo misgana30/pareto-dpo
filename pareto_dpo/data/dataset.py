@@ -10,15 +10,18 @@ from .tokenizer import (
 )
 
 
-def read_smiles_file(path: str, max_mols: Optional[int] = None) -> List[str]:
+def read_smiles_file(path: str, max_mols: Optional[int] = None, shuffle: bool = False) -> List[str]:
+    import random
     smiles_list = []
     with open(path, "r") as f:
         for line in f:
             smi = line.strip().split()[0]
             if Chem.MolFromSmiles(smi):
                 smiles_list.append(smi)
-                if max_mols and len(smiles_list) >= max_mols:
-                    break
+    if shuffle:
+        random.shuffle(smiles_list)
+    if max_mols:
+        smiles_list = smiles_list[:max_mols]
     return smiles_list
 
 

@@ -16,7 +16,7 @@ def build_pareto_preference_pairs(
     directions: List[str],
     max_pairs_per_scaffold: int = 256,
     verbose: bool = False,
-) -> List[Tuple[str, str, np.ndarray, np.ndarray]]:
+) -> List[Tuple[str, str, str, np.ndarray, np.ndarray]]:
     all_pairs = []
 
     iterator = tqdm(smiles_per_scaffold, desc="Building Pareto pairs") if verbose else smiles_per_scaffold
@@ -26,25 +26,23 @@ def build_pareto_preference_pairs(
             continue
 
         scores, valid_mask = score_molecules(smiles_list, objectives, directions)
-        valid_idxs = np.where(valid_mask)[0]
-        if len(valid_idxs) < 2:
+        n_valid = valid_mask.sum()
+        if n_valid < 2 and len(smiles_list) < 2:
             continue
 
-        valid_smiles = [smiles_list[i] for i in valid_idxs]
-        valid_scores = scores[valid_idxs]
-
         pairs = []
-        n = len(valid_smiles)
+        n = len(smiles_list)
         for i in range(n):
             for j in range(n):
                 if i == j:
                     continue
-                if is_pareto_dominant(valid_scores[i], valid_scores[j]):
+                if is_pareto_dominant(scores[i], scores[j]):
                     pairs.append((
-                        valid_smiles[i],
-                        valid_smiles[j],
-                        valid_scores[i].copy(),
-                        valid_scores[j].copy(),
+                        scaffold,
+                        smiles_list[i],
+                        smiles_list[j],
+                        scores[i].copy(),
+                        scores[j].copy(),
                     ))
 
         if len(pairs) > max_pairs_per_scaffold:
@@ -64,7 +62,7 @@ def build_pareto_preference_pairs_batched(
     num_samples_per_scaffold: int = 64,
     max_pairs_per_scaffold: int = 256,
     verbose: bool = False,
-) -> List[Tuple[str, str, np.ndarray, np.ndarray]]:
+) -> List[Tuple[str, str, str, np.ndarray, np.ndarray]]:
     smiles_per_scaffold = []
     for scaffold in (tqdm(scaffolds, desc="Generating pairs") if verbose else scaffolds):
         generated = generate_fn(scaffold, num_samples_per_scaffold)

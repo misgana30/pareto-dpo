@@ -17,12 +17,15 @@ class ScaffoldGPT(GPT2LMHeadModel):
     ):
         config = AutoConfig.from_pretrained(model_name)
         config.vocab_size = len(tokenizer)
-        config.max_length = kwargs.get("max_length", 512)
-        model = super().from_pretrained(model_name, config=config, **kwargs)
+        max_length = kwargs.pop("max_length", 512)
+        if hasattr(config, "max_length"):
+            del config.max_length
+        model = super().from_pretrained(model_name, config=config, tokenizer=tokenizer, ignore_mismatched_sizes=True, **kwargs)
         model.resize_token_embeddings(len(tokenizer))
         model.scaffold_token_id = tokenizer.convert_tokens_to_ids("<scaffold>")
         model.decorate_token_id = tokenizer.convert_tokens_to_ids("<decorate>")
         model.pad_token_id = tokenizer.pad_token_id
+        model.generation_config.max_length = max_length
         return model
 
     def generate_from_scaffold(

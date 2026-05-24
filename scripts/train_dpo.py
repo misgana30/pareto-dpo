@@ -33,7 +33,9 @@ def main():
     tokenizer = load_or_create_tokenizer(tokenizer_path="data/tokenizer.json")
 
     model = ScaffoldGPT.from_pretrained(args.base_model_path, tokenizer)
+    model.to("cuda")
     ref_model = ScaffoldGPT.from_pretrained(args.base_model_path, tokenizer)
+    ref_model.to("cuda")
     ref_model.eval()
     for param in ref_model.parameters():
         param.requires_grad = False
@@ -50,7 +52,9 @@ def main():
     trainer.train(pairs)
 
     model.save_pretrained(args.output_dir)
-    tokenizer.save_pretrained(args.output_dir)
+    # Copy serialized tokenizer file (cannot use save_pretrained due to custom PreTokenizer)
+    import shutil
+    shutil.copy("data/tokenizer.json", os.path.join(args.output_dir, "tokenizer.json"))
     print(f"DPO model saved to {args.output_dir}")
 
 

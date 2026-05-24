@@ -57,6 +57,7 @@ OBJECTIVE_FUNCS = {
 def compute_objectives(
     smiles: str, objectives: List[str]
 ) -> Dict[str, Optional[float]]:
+    smiles = smiles.replace(" ", "")
     scores = {}
     for obj in objectives:
         func = OBJECTIVE_FUNCS.get(obj)
@@ -78,7 +79,7 @@ def score_molecules(
         scores = compute_objectives(smi, objectives)
         row = []
         valid = True
-        for obj in scores:
+        for obj in objectives:
             val = scores[obj]
             if val is None:
                 valid = False
@@ -92,5 +93,9 @@ def score_molecules(
     for i, direction in enumerate(directions):
         if direction == "min":
             results[:, i] = -results[:, i]
+
+    # After negation, all objectives are "higher is better".
+    # Replace NaN (invalid molecules) with extreme negative values so they are always dominated.
+    results = np.nan_to_num(results, nan=-1e6)
 
     return results, np.array(valid_mask, dtype=bool)

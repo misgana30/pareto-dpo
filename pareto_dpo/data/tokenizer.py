@@ -35,7 +35,7 @@ def train_tokenizer(
         vocab_size=vocab_size,
         special_tokens=special_tokens,
         show_progress=True,
-        initial_alphabet=SMILES_REGEX,
+        initial_alphabet=list("bcnops()=#-+\\/:~@?*>$%.0123456789"),
     )
 
     def batch_iterator():
@@ -43,14 +43,18 @@ def train_tokenizer(
             yield smiles_list[i : i + 1000]
 
     tokenizer.train_from_iterator(batch_iterator(), trainer=trainer)
+    tokenizer.pre_tokenizer = None
     tokenizer.save(save_path)
     return tokenizer
 
 
 class RegexPreTokenizer:
     def pre_tokenize(self, pretok):
-        tokens = SMILES_REGEX.findall(pretok.original_str)
-        return [(t, (0, 0)) for t in tokens]
+        def splitter(_i, normalized):
+            content = normalized.original
+            offsets = [(m.start(), m.end()) for m in SMILES_REGEX.finditer(content)]
+            return [normalized.slice(slice(s, e)) for s, e in offsets]
+        pretok.split(splitter)
 
 
 def load_or_create_tokenizer(
@@ -71,6 +75,8 @@ def load_or_create_tokenizer(
         tokenizer.add_special_tokens({
             "additional_special_tokens": ["<scaffold>", "<decorate>"]
         })
+        from tokenizers.pre_tokenizers import PreTokenizer as PT
+        tokenizer.backend_tokenizer.pre_tokenizer = PT.custom(RegexPreTokenizer())
     else:
         assert smiles_list is not None, "smiles_list required to train tokenizer"
         _ = train_tokenizer(smiles_list, tokenizer_path, vocab_size=vocab_size)
@@ -84,6 +90,8 @@ def load_or_create_tokenizer(
         tokenizer.add_special_tokens({
             "additional_special_tokens": ["<scaffold>", "<decorate>"]
         })
+        from tokenizers.pre_tokenizers import PreTokenizer as PT
+        tokenizer.backend_tokenizer.pre_tokenizer = PT.custom(RegexPreTokenizer())
     return tokenizer
 
 

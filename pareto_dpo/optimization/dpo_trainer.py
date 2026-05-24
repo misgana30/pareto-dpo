@@ -4,12 +4,15 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 
+from ..data.tokenizer import format_scaffold_decoration
+
+
 class PreferenceDataset(Dataset):
     def __init__(self, pairs, tokenizer, max_length=512):
         self.data = []
-        for chosen_smi, rejected_smi, _, _ in pairs:
-            chosen_text = f"<bos><scaffold>{chosen_smi}<eos>"
-            rejected_text = f"<bos><scaffold>{rejected_smi}<eos>"
+        for scaffold, chosen_smi, rejected_smi, _, _ in pairs:
+            chosen_text = format_scaffold_decoration(scaffold, chosen_smi)
+            rejected_text = format_scaffold_decoration(scaffold, rejected_smi)
             self.data.append((chosen_text, rejected_text))
         self.tokenizer = tokenizer
         self.max_length = max_length
@@ -51,6 +54,7 @@ def dpo_loss(
     policy_log_ratio = policy_chosen_logps - policy_rejected_logps
     ref_log_ratio = ref_chosen_logps - ref_rejected_logps
     logits = policy_log_ratio - ref_log_ratio
+    logits = torch.clamp(logits, min=-50, max=50)
     loss = -F.logsigmoid(beta * logits).mean()
     return loss
 
@@ -157,6 +161,11 @@ class DPOTrainer:
             ref_rejected_logps,
             beta=self.config.beta,
         )
+
+        if not torch.isfinite(loss):
+            print(f"WARNING: Non-finite loss={loss.item()}, skipping step")
+            self.optimizer.zero_grad()
+            return torch.tensor(0.0)
 
         loss.backward()
         torch.nn.utils.clip_grad_norm_(

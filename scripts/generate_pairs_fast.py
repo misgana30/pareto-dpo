@@ -14,9 +14,7 @@ from pareto_dpo.optimization.scorer import score_molecules
 from pareto_dpo.optimization.pareto import build_pareto_preference_pairs_batched
 
 
-def generate_from_model(
-    model, scaffold: str, n: int, temperature: float, top_k: int, top_p: int
-) -> List[str]:
+def generate_from_model(model, scaffold, n, temperature, top_k, top_p):
     return model.generate_from_scaffold(
         scaffold,
         num_return_sequences=n,
@@ -26,12 +24,40 @@ def generate_from_model(
     )
 
 
+def collect_scaffolds(data_path: str, max_scaffolds: int) -> List[str]:
+    """Extract scaffolds but stop early once we have enough unique ones."""
+    from rdkit import Chem
+    from rdkit.Chem.Scaffolds import MurckoScaffold
+
+    scaffolds = set()
+    with open(data_path) as f:
+        total = sum(1 for _ in f)
+    pbar = tqdm(total=total, desc="Extracting scaffolds")
+    with open(data_path) as f:
+        for line in f:
+            smi = line.strip().split()[0]
+            pbar.update(1)
+            mol = Chem.MolFromSmiles(smi)
+            if mol:
+                try:
+                    s = MurckoScaffold.GetScaffoldForMol(mol)
+                    scaffolds.add(Chem.MolToSmiles(s))
+                    if len(scaffolds) >= max_scaffolds:
+                        break
+                except Exception:
+                    pass
+    pbar.close()
+    slist = list(scaffolds)[:max_scaffolds]
+    print(f"Collected {len(slist)} scaffolds (processed {pbar.n} SMILES)")
+    return slist
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, required=True)
     parser.add_argument("--data_path", type=str, required=True)
     parser.add_argument("--output", type=str, default="data/pareto_pairs.pkl")
-    parser.add_argument("--num_scaffolds", type=int, default=1000)
+    parser.add_argument("--num_scaffolds", type=int, default=5000)
     parser.add_argument("--samples_per_scaffold", type=int, default=64)
     parser.add_argument("--temperature", type=float, default=1.0)
     args = parser.parse_args()
@@ -39,23 +65,10 @@ def main():
     config = ParetoDPOConfig()
     tokenizer = load_or_create_tokenizer(tokenizer_path="data/tokenizer.json")
     model = ScaffoldGPT.from_pretrained(args.model_path, tokenizer)
+    model.to("cuda")
     model.eval()
 
-    smiles_list = read_smiles_file(args.data_path)
-    from rdkit import Chem
-    from rdkit.Chem.Scaffolds import MurckoScaffold
-
-    scaffolds = set()
-    for smi in tqdm(smiles_list, desc="Extracting scaffolds"):
-        mol = Chem.MolFromSmiles(smi)
-        if mol:
-            try:
-                s = MurckoScaffold.GetScaffoldForMol(mol)
-                scaffolds.add(Chem.MolToSmiles(s))
-            except Exception:
-                pass
-    scaffolds = list(scaffolds)[: args.num_scaffolds]
-    print(f"Using {len(scaffolds)} scaffolds")
+    scaffolds = collect_scaffolds(args.data_path, args.num_scaffolds)
 
     generate_fn = lambda s, n: generate_from_model(
         model, s, n, args.temperature, config.gen_top_k, config.gen_top_p
