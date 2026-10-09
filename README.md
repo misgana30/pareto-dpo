@@ -98,13 +98,6 @@ python scripts/evaluate.py --model_path checkpoints/dpo --data_path data/chembl_
 python scripts/final_evaluation.py --dpo_model_path checkpoints/dpo_v5
 ```
 
-## Citation
 
-```bibtex
-@software{pareto_dpo,
-  author = {Misgana},
-  title = {Pareto-DPO: Multi-Objective Preference Alignment for Scaffold Decoration},
-  url = {https://github.com/misgana30/pareto-dpo},
-  year = {2026},
-}
+
 ```
